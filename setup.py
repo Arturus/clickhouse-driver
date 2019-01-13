@@ -87,7 +87,8 @@ setup(
     install_requires=install_requires,
     extras_require={
         'lz4': ['lz4', 'clickhouse-cityhash>=1.0.2.1'],
-        'zstd': ['zstd', 'clickhouse-cityhash>=1.0.2.1']
+        'zstd': ['zstd', 'clickhouse-cityhash>=1.0.2.1'],
+        'numpy': ['numpy', 'pandas']
     },
     test_suite='nose.collector',
     tests_require=[

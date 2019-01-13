@@ -1,5 +1,4 @@
 from struct import Struct, error as struct_error
-
 from . import exceptions
 
 
@@ -112,9 +111,9 @@ class Column(object):
 
         else:
             if after_read:
-                items = (after_read(x) for x in items)
+                items = tuple(after_read(x) for x in items)
 
-        return tuple(items)
+        return items
 
     def read_items(self, n_items, buf):
         raise NotImplementedError

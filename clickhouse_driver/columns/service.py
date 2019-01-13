@@ -2,6 +2,11 @@ from .. import errors
 from .arraycolumn import create_array_column
 from .datecolumn import DateColumn
 from .datetimecolumn import create_datetime_column
+from .numpycolumns import (
+    create_numpy_dt_column, NumpyInt8Column, NumpyInt16Column, NumpyInt32Column, NumpyInt64Column,
+    NumpyUInt8Column, NumpyUInt16Column, NumpyUInt32Column, NumpyUInt64Column, NumpyFloat32Column,
+    NumpyFloat64Column
+)
 from .decimalcolumn import create_decimal_column
 from . import exceptions as column_exceptions
 from .enumcolumn import create_enum_column
@@ -32,9 +37,19 @@ column_by_type = {c.ch_type: c for c in [
     IntervalSecondColumn
 ]}
 
+numpy_column_by_type = {c.ch_type: c for c in [
+    NumpyInt8Column, NumpyInt16Column, NumpyInt32Column, NumpyInt64Column,
+    NumpyUInt8Column, NumpyUInt16Column, NumpyUInt32Column, NumpyUInt64Column, NumpyFloat32Column,
+    NumpyFloat64Column
+]}
+
 
 def get_column_by_spec(spec, column_options=None):
     column_options = column_options or {}
+    if 'context' in column_options:
+        use_numpy = column_options['context'].client_settings.get('numpy_columns', False)
+    else:
+        use_numpy = False
 
     def create_column_with_options(x):
         return get_column_by_spec(x, column_options)
@@ -46,7 +61,10 @@ def get_column_by_spec(spec, column_options=None):
         return create_enum_column(spec, column_options)
 
     elif spec.startswith('DateTime'):
-        return create_datetime_column(spec, column_options)
+        if use_numpy:
+            return create_numpy_dt_column(spec, column_options)
+        else:
+            return create_datetime_column(spec, column_options)
 
     elif spec.startswith('Decimal'):
         return create_decimal_column(spec, column_options)
@@ -59,9 +77,12 @@ def get_column_by_spec(spec, column_options=None):
 
     else:
         try:
-            cls = column_by_type[spec]
+            cls = None
+            if use_numpy:
+                cls = numpy_column_by_type.get(spec, None)
+            if cls is None:
+                cls = column_by_type[spec]
             return cls(**column_options)
-
         except KeyError as e:
             raise errors.UnknownTypeError('Unknown type {}'.format(e.args[0]))
 

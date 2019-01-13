@@ -28,11 +28,15 @@ class Client(object):
 
         * strings_as_bytes -- turns off string column encoding/decoding.
 
+        * numpy_columns -- reads datetime and numeric columns as numpy arrays,
+          avoids boxing into Python types.
+
     """
 
     available_client_settings = (
         'insert_block_size',  # TODO: rename to max_insert_block_size
-        'strings_as_bytes'
+        'strings_as_bytes',
+        'numpy_columns'
     )
 
     def __init__(self, *args, **kwargs):
@@ -44,6 +48,9 @@ class Client(object):
             ),
             'strings_as_bytes': self.settings.pop(
                 'strings_as_bytes', False
+            ),
+            'numpy_columns': self.settings.pop(
+                'numpy_columns', False
             )
         }
 

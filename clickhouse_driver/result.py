@@ -1,4 +1,6 @@
 from .progress import Progress
+import numpy as np
+import itertools
 
 
 class QueryResult(object):
@@ -27,12 +29,7 @@ class QueryResult(object):
         if block.rows:
             if self.columnar:
                 columns = block.get_columns()
-                if self.data:
-                    # Extend corresponding column.
-                    for i, column in enumerate(columns):
-                        self.data[i] += column
-                else:
-                    self.data.extend(columns)
+                self.data.append(columns)
             else:
                 self.data.extend(block.get_rows())
 
@@ -47,10 +44,23 @@ class QueryResult(object):
         for packet in self.packet_generator:
             self.store(packet)
 
-        if self.with_column_types:
-            return self.data, self.columns_with_types
+        if self.columnar:
+            # Flatten the data (list of column chunk blocks)
+            data = []
+            # Transpose to a list of columns, each column is list of chunks
+            for chunks in zip(*self.data):
+                # Concatenate chunks for each column
+                if isinstance(chunks[0], np.ndarray):
+                    column = np.concatenate(chunks)
+                else:
+                    column = tuple(itertools.chain.from_iterable(chunks))
+                data.append(column)
         else:
-            return self.data
+            data = self.data
+        if self.with_column_types:
+            return data, self.columns_with_types
+        else:
+            return data
 
 
 class ProgressQueryResult(QueryResult):
