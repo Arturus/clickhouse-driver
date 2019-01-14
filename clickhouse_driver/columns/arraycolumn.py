@@ -1,14 +1,9 @@
 
 from struct import Struct
+from collections import deque
 
-from ..util import compat
 from .base import Column
 from .intcolumn import UInt64Column
-
-if compat.PY3:
-    from queue import Queue
-else:
-    from Queue import Queue
 
 
 class ArrayColumn(Column):
@@ -61,15 +56,15 @@ class ArrayColumn(Column):
         return self._read(rows, buf)
 
     def _write_sizes(self, value, buf):
-        q = Queue()
-        q.put((self, value, 0))
+        q = deque()
+        q.append((self, value, 0))
 
         cur_depth = 0
         offset = 0
         nulls_map = []
 
-        while not q.empty():
-            column, value, depth = q.get_nowait()
+        while q:
+            column, value, depth = q.popleft()
 
             if cur_depth != depth:
                 cur_depth = depth
@@ -89,7 +84,7 @@ class ArrayColumn(Column):
             nested_column = column.nested_column
             if isinstance(nested_column, ArrayColumn):
                 for x in value:
-                    q.put((nested_column, x, cur_depth + 1))
+                    q.append((nested_column, x, cur_depth + 1))
                     nulls_map.append(None if x is None else False)
 
     def _write_data(self, value, buf):
@@ -119,8 +114,8 @@ class ArrayColumn(Column):
         self._write_data(value, buf)
 
     def _read(self, size, buf):
-        q = Queue()
-        q.put((self, size, 0))
+        q = deque()
+        q.append((self, size, 0))
 
         data = []
         slices_series = []
@@ -135,8 +130,8 @@ class ArrayColumn(Column):
             nulls_map = [0] * size
 
         # Read and store info about slices.
-        while not q.empty():
-            column, size, depth = q.get_nowait()
+        while q:
+            column, size, depth = q.popleft()
 
             nested_column = column.nested_column
 
@@ -156,19 +151,20 @@ class ArrayColumn(Column):
             if isinstance(nested_column, ArrayColumn):
                 for _i in range(size):
                     offset = self.size_unpack(buf)
-                    q.put((nested_column, offset - prev_offset, cur_depth + 1))
+                    q.append((nested_column, offset - prev_offset, cur_depth + 1))
                     slices.append((prev_offset, offset))
                     prev_offset = offset
 
             # Read data
             else:
-                data.extend(
-                    nested_column._read_data(
-                        size, buf,
-                        nulls_map=nulls_map[prev_offset:prev_offset + size]
+                if size > 0:
+                    data.extend(
+                        nested_column._read_data(
+                            size, buf,
+                            nulls_map=nulls_map[prev_offset:prev_offset + size]
+                        )
                     )
-                )
-                prev_offset += size
+                    prev_offset += size
 
         # Build nested tuple structure.
         for slices, nulls_map in reversed(slices_series):
