@@ -15,6 +15,7 @@ from .intcolumn import (
     Int8Column, Int16Column, Int32Column, Int64Column,
     UInt8Column, UInt16Column, UInt32Column, UInt64Column
 )
+from .lowcardinalitycolumn import create_low_cardinality_column
 from .nothingcolumn import NothingColumn
 from .nullcolumn import NullColumn
 from .nullablecolumn import create_nullable_column
@@ -25,6 +26,7 @@ from .intervalcolumn import (
     IntervalDayColumn, IntervalHourColumn, IntervalMinuteColumn,
     IntervalSecondColumn
 )
+from .ipcolumn import IPv4Column, IPv6Column
 
 
 column_by_type = {c.ch_type: c for c in [
@@ -34,7 +36,7 @@ column_by_type = {c.ch_type: c for c in [
     NothingColumn, NullColumn, UUIDColumn,
     IntervalYearColumn, IntervalMonthColumn, IntervalWeekColumn,
     IntervalDayColumn, IntervalHourColumn, IntervalMinuteColumn,
-    IntervalSecondColumn
+    IntervalSecondColumn, IPv4Column, IPv6Column
 ]}
 
 numpy_column_by_type = {c.ch_type: c for c in [
@@ -75,6 +77,9 @@ def get_column_by_spec(spec, column_options=None):
     elif spec.startswith('Nullable'):
         return create_nullable_column(spec, create_column_with_options)
 
+    elif spec.startswith('LowCardinality'):
+        return create_low_cardinality_column(spec, create_column_with_options)
+
     else:
         try:
             cls = None
@@ -90,6 +95,7 @@ def get_column_by_spec(spec, column_options=None):
 def read_column(context, column_spec, n_items, buf):
     column_options = {'context': context}
     column = get_column_by_spec(column_spec, column_options=column_options)
+    column.read_state_prefix(buf)
     return column.read_data(n_items, buf)
 
 
@@ -102,6 +108,7 @@ def write_column(context, column_name, column_spec, items, buf,
     column = get_column_by_spec(column_spec, column_options)
 
     try:
+        column.write_state_prefix(buf)
         column.write_data(items, buf)
 
     except column_exceptions.ColumnTypeMismatchException as e:
