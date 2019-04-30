@@ -1,6 +1,7 @@
 # ClickHouse Python driver for Data Science
-This is a fork of excellent Python driver https://github.com/mymarilyn/clickhouse-driver.
-Fork has support for direct data loading into numpy arrays and performance-oriented enhancements.
+This is a modification of excellent Python driver https://github.com/mymarilyn/clickhouse-driver.
+Modified driver has support for direct data loading into numpy arrays and performance-oriented enhancements.
+
 [Blog article](https://suilin.ru/post/clickhouse_driver/) (in Russian)
 
 ## Features
@@ -47,7 +48,7 @@ Direct loading into pandas dataframe is also supported.
 
 If numpy support is turned on (by `numpy_columns=True` setting),
  driver will load numeric and datetime
-columns as numpy arrays. For convenience, query_dataframe() method
+columns as numpy arrays. For convenience, `query_dataframe()` method
  loads all columns as pandas dataframe.
 
 
@@ -76,5 +77,4 @@ just for some data types reading speeds up, and for some it works as usual.
 
 ## License
 
-ClickHouse Python Driver is distributed under the `MIT license
-<http://www.opensource.org/licenses/mit-license.php>`_.
+Driver is distributed under the [MIT license](http://www.opensource.org/licenses/mit-license.php).
