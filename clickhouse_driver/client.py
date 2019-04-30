@@ -310,10 +310,13 @@ class Client(object):
             self.disconnect()
             raise
 
-    def query_dataframe(self, query):
+    def query_dataframe(self, query, params=None, external_tables=None,
+                        query_id=None, settings=None):
         import pandas as pd
         import re
-        data, columns = self.execute(query, columnar=True, with_column_types=True)
+        data, columns = self.execute(query, columnar=True, with_column_types=True,
+                                     params=params, external_tables=external_tables,
+                                     query_id=query_id, settings=settings)
         df = pd.DataFrame({re.sub('\W', '_', col[0]): d for d, col in zip(data, columns)})
         return df
 
