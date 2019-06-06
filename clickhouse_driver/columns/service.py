@@ -5,8 +5,8 @@ from .datetimecolumn import create_datetime_column
 from .numpycolumns import (
     create_numpy_dt_column, NumpyInt8Column, NumpyInt16Column, NumpyInt32Column, NumpyInt64Column,
     NumpyUInt8Column, NumpyUInt16Column, NumpyUInt32Column, NumpyUInt64Column, NumpyFloat32Column,
-    NumpyFloat64Column
-)
+    NumpyFloat64Column,
+    create_numpy_low_cardinality_column)
 from .decimalcolumn import create_decimal_column
 from . import exceptions as column_exceptions
 from .enumcolumn import create_enum_column
@@ -78,7 +78,11 @@ def get_column_by_spec(spec, column_options=None):
         return create_nullable_column(spec, create_column_with_options)
 
     elif spec.startswith('LowCardinality'):
-        return create_low_cardinality_column(spec, create_column_with_options)
+        if use_numpy:
+            return create_numpy_low_cardinality_column(spec, create_column_with_options)
+        else:
+            return create_low_cardinality_column(spec, create_column_with_options)
+
 
     else:
         try:

@@ -5,7 +5,7 @@ Modified driver has support for direct data loading into numpy arrays and perfor
 [Blog article](https://suilin.ru/post/clickhouse_driver/) (in Russian)
 
 ## Features
-Modified driver can directly load numeric columns (Float32/64, \[U\]Int8/16/32/64) and
+Modified driver can directly load numeric columns (Float32/64, \[U\]Int8/16/32/64), LowCardinality and
 DateTime columns into numpy arrays when using columnar mode (`columnar=True`).
 Direct loading increases performance by 8-35 times and lowers
 memory requirements by ~4 times.
@@ -48,7 +48,8 @@ Direct loading into pandas dataframe is also supported.
 
 If numpy support is turned on (by `numpy_columns=True` setting),
  driver will load numeric and datetime
-columns as numpy arrays. For convenience, `query_dataframe()` method
+columns as numpy arrays (or pandas Categorical type for LowCardinality columns).
+ For convenience, `query_dataframe()` method
  loads all columns as pandas dataframe.
 
 

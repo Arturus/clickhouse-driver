@@ -1,7 +1,8 @@
 from .progress import Progress
 import numpy as np
+import pandas as pd
 import itertools
-
+from pandas.api.types import union_categoricals
 
 class QueryResult(object):
     """
@@ -52,6 +53,8 @@ class QueryResult(object):
                 # Concatenate chunks for each column
                 if isinstance(chunks[0], np.ndarray):
                     column = np.concatenate(chunks)
+                elif isinstance(chunks[0], pd.Categorical):
+                    column = union_categoricals(chunks)
                 else:
                     column = tuple(itertools.chain.from_iterable(chunks))
                 data.append(column)
