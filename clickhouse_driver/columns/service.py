@@ -52,10 +52,11 @@ numpy_column_by_type = {c.ch_type: c for c in [
 
 def get_column_by_spec(spec, column_options=None):
     column_options = column_options or {}
+    use_numpy = False
     if 'context' in column_options:
-        use_numpy = column_options['context'].client_settings.get('numpy_columns', False)
-    else:
-        use_numpy = False
+        context = column_options['context']
+        if context:
+            use_numpy = context.client_settings.get('numpy_columns', False)
 
     def create_column_with_options(x):
         return get_column_by_spec(x, column_options)
