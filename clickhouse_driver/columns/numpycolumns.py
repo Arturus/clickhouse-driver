@@ -27,10 +27,11 @@ class NumpyDateTimeColumn(NumpyColumn):
         self.timezone = timezone
 
     def read_items(self, n_items, buf):
-        data = super().read_items(n_items, buf)
-        dt = data.astype('datetime64[s]')
+        # read seconds and convert to nanoseconds
+        data = super().read_items(n_items, buf).astype(np.uint64) * 1000000000
+        dt = data.astype('datetime64[ns]')
         if self.timezone:
-            ts = pd.to_datetime(dt, utc=True)
+            ts = pd.DatetimeIndex(data=dt, tz='utc')
             dt = ts.tz_convert(self.timezone).tz_localize(None).values
         return dt
 
