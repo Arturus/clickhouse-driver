@@ -19,7 +19,11 @@ from .lowcardinalitycolumn import create_low_cardinality_column
 from .nothingcolumn import NothingColumn
 from .nullcolumn import NullColumn
 from .nullablecolumn import create_nullable_column
+from .simpleaggregatefunctioncolumn import (
+    create_simple_aggregate_function_column
+)
 from .stringcolumn import create_string_column
+from .tuplecolumn import create_tuple_column
 from .uuidcolumn import UUIDColumn
 from .intervalcolumn import (
     IntervalYearColumn, IntervalMonthColumn, IntervalWeekColumn,
@@ -74,6 +78,9 @@ def get_column_by_spec(spec, column_options=None):
     elif spec.startswith('Array'):
         return create_array_column(spec, create_column_with_options)
 
+    elif spec.startswith('Tuple'):
+        return create_tuple_column(spec, create_column_with_options)
+
     elif spec.startswith('Nullable'):
         return create_nullable_column(spec, create_column_with_options)
 
@@ -83,6 +90,9 @@ def get_column_by_spec(spec, column_options=None):
         else:
             return create_low_cardinality_column(spec, create_column_with_options)
 
+    elif spec.startswith('SimpleAggregateFunction'):
+        return create_simple_aggregate_function_column(
+            spec, create_column_with_options)
 
     else:
         try:
@@ -98,7 +108,7 @@ def get_column_by_spec(spec, column_options=None):
 
 def read_column(context, column_spec, n_items, buf):
     column_options = {'context': context}
-    column = get_column_by_spec(column_spec, column_options=column_options)
+    column = get_column_by_spec(column_spec, column_options)
     column.read_state_prefix(buf)
     return column.read_data(n_items, buf)
 

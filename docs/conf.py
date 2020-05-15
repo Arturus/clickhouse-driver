@@ -16,17 +16,18 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 
+from clickhouse_driver import __version__, VERSION
 
 # -- Project information -----------------------------------------------------
 
 project = u'clickhouse-driver'
-copyright = u'2017-2019, clickhouse-driver authors'
+copyright = u'2017-2020, clickhouse-driver authors'
 author = u'clickhouse-driver authors'
 
 # The short X.Y version
-version = u'0.0'
+version = '.'.join(str(x) for x in VERSION[:2])
 # The full version, including alpha/beta/rc tags
-release = u'0.0.16'
+release = __version__
 
 
 # -- General configuration ---------------------------------------------------
@@ -100,7 +101,13 @@ html_theme_options = {
     "github_user": "mymarilyn",
     "github_repo": "clickhouse-driver",
     "fixed_sidebar": True,
+    "sidebar_width": '300px',
+    "page_width": '1000px'
 }
+
+html_css_files = [
+    'css/custom.css',
+]
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.

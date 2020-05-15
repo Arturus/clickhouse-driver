@@ -6,6 +6,7 @@ from tests.util import require_server_version
 
 
 class DecimalTestCase(BaseTestCase):
+    required_server_version = (18, 12, 13)
     stable_support_version = (18, 14, 9)
 
     def client_kwargs(self, version):
@@ -13,16 +14,11 @@ class DecimalTestCase(BaseTestCase):
             return {'settings': {'allow_experimental_decimal_type': True}}
 
     def cli_client_kwargs(self):
-        current = self.client.connection.server_info.version_tuple()
-
-        if self.stable_support_version > current:
+        if self.stable_support_version > self.server_version:
             return {'allow_experimental_decimal_type': 1}
 
-        return {}
-
-    @require_server_version(18, 12, 13)
     def test_simple(self):
-        with self.create_table('a Decimal(9, 5)', **self.cli_client_kwargs()):
+        with self.create_table('a Decimal(9, 5)'):
             data = [(Decimal('300.42'), ), (300.42, ), (-300, )]
             self.client.execute(
                 'INSERT INTO test (a) VALUES', data, types_check=True
@@ -41,7 +37,7 @@ class DecimalTestCase(BaseTestCase):
     def test_different_precisions(self):
         columns = 'a Decimal32(2), b Decimal64(2), c Decimal128(2)'
 
-        with self.create_table(columns, **self.cli_client_kwargs()):
+        with self.create_table(columns):
             data = [(
                 Decimal('300.42'),
                 # 300.42 + (1 << 34)
@@ -74,7 +70,7 @@ class DecimalTestCase(BaseTestCase):
     def test_different_precisions_negative(self):
         columns = 'a Decimal32(2), b Decimal64(2), c Decimal128(2)'
 
-        with self.create_table(columns, **self.cli_client_kwargs()):
+        with self.create_table(columns):
             data = [(
                 Decimal('-300.42'),
                 # 300.42 + (1 << 34)
@@ -107,7 +103,7 @@ class DecimalTestCase(BaseTestCase):
     def test_max_precisions(self):
         columns = 'a Decimal32(0), b Decimal64(0), c Decimal128(0)'
 
-        with self.create_table(columns, **self.cli_client_kwargs()):
+        with self.create_table(columns):
             data = [(
                 Decimal(10**9 - 1),
                 Decimal(10**18 - 1),
@@ -137,11 +133,8 @@ class DecimalTestCase(BaseTestCase):
             inserted = self.client.execute(query)
             self.assertEqual(inserted, data)
 
-    @require_server_version(18, 12, 13)
     def test_nullable(self):
-        columns = 'a Nullable(Decimal32(3))'
-
-        with self.create_table(columns, **self.cli_client_kwargs()):
+        with self.create_table('a Nullable(Decimal32(3))'):
             data = [(300.42, ), (None, ), ]
             self.client.execute(
                 'INSERT INTO test (a) VALUES', data
@@ -154,9 +147,8 @@ class DecimalTestCase(BaseTestCase):
             inserted = self.client.execute(query)
             self.assertEqual(inserted, [(Decimal('300.42'), ), (None, ), ])
 
-    @require_server_version(18, 12, 13)
     def test_no_scale(self):
-        with self.create_table('a Decimal32(0)', **self.cli_client_kwargs()):
+        with self.create_table('a Decimal32(0)'):
             data = [(2147483647, ), ]
             self.client.execute(
                 'INSERT INTO test (a) VALUES', data
@@ -169,10 +161,9 @@ class DecimalTestCase(BaseTestCase):
             inserted = self.client.execute(query)
             self.assertEqual(inserted, [(Decimal('2147483647'), )])
 
-    @require_server_version(18, 12, 13)
     def test_type_mismatch(self):
         data = [(2147483649,), ]
-        with self.create_table('a Decimal32(0)', **self.cli_client_kwargs()):
+        with self.create_table('a Decimal32(0)'):
             with self.assertRaises(errors.TypeMismatchError) as e:
                 self.client.execute(
                     'INSERT INTO test (a) VALUES', data, types_check=True

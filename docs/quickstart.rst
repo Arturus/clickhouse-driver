@@ -30,6 +30,9 @@ There are two conceptual types of queries:
 Every query should be executed by calling one of the client's execute
 methods: `execute`, `execute_with_progress`, `execute_iter method`.
 
+- SELECT queries can use `execute`, `execute_with_progress`, `execute_iter`
+  methods.
+- INSERT queries can use only `execute` method.
 
 Selecting data
 --------------
@@ -139,14 +142,17 @@ To insert data efficiently, provide data separately, and end your statement with
         ...     'INSERT INTO test (x) VALUES',
         ...     [{'x': 1}, {'x': 2}, {'x': 3}, {'x': 100}]
         ... )
+        4
         >>> client.execute(
         ...     'INSERT INTO test (x) VALUES',
         ...     [[200]]
         ... )
+        1
         >>> client.execute(
         ...     'INSERT INTO test (x) VALUES',
         ...     ((x, ) for x in range(5))
         ... )
+        5
 
 You can use any iterable yielding lists, tuples or dicts.
 
@@ -192,11 +198,20 @@ DDL queries can be executed in the same way SELECT queries are executed:
         []
 
 
-Asynchronous behavior
----------------------
+Async and multithreading
+------------------------
 
 Every ClickHouse query is assigned an identifier to enable request execution
 tracking. However, ClickHouse native protocol is synchronous: all incoming
 queries are executed consecutively. Clickhouse-driver does not yet implement
-a connection pool. To utilize ClickHouse's asynchronous capability you should
-either use multiple Client instances or implement a queue.
+a connection pool.
+
+To utilize ClickHouse's asynchronous capability you should either use multiple
+Client instances or implement a queue.
+
+The same thing is applied to multithreading. Queries from different threads
+can't use one Client instance with single connection. You should use different
+clients for different threads.
+
+However, if you are using DB API for communication with the server each cursor create
+its own Client instance. This makes communication thread-safe.

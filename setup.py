@@ -1,19 +1,19 @@
 import os
-import sys
 import re
 from codecs import open
 
 from setuptools import setup, find_packages
+from distutils.extension import Extension
+
+try:
+    from Cython.Build import cythonize
+except ImportError:
+    USE_CYTHON = False
+else:
+    USE_CYTHON = True
+
 
 here = os.path.abspath(os.path.dirname(__file__))
-
-
-PY34 = sys.version_info[0:2] >= (3, 4)
-
-install_requires = ['pytz']
-if not PY34:
-    install_requires.append('enum34')
-    install_requires.append('ipaddress')
 
 
 def read_version():
@@ -32,6 +32,33 @@ def read_version():
 
 with open(os.path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
+
+# Prepare extensions.
+ext = '.pyx' if USE_CYTHON else '.c'
+extensions = [
+    Extension(
+        'clickhouse_driver.bufferedreader',
+        ['clickhouse_driver/bufferedreader' + ext]
+    ),
+    Extension(
+        'clickhouse_driver.bufferedwriter',
+        ['clickhouse_driver/bufferedwriter' + ext]
+    ),
+    Extension(
+        'clickhouse_driver.columns.stringcolumn',
+        ['clickhouse_driver/columns/stringcolumn' + ext]
+    ),
+    Extension(
+        'clickhouse_driver.varint',
+        ['clickhouse_driver/varint' + ext]
+    )
+]
+
+if USE_CYTHON:
+    extensions = cythonize(
+        extensions, compiler_directives={'language_level': '3'}
+    )
+
 
 setup(
     name='clickhouse-driver',
@@ -71,6 +98,7 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: Implementation :: PyPy',
 
         'Topic :: Database',
@@ -85,9 +113,15 @@ setup(
 
     packages=find_packages('.', exclude=['tests*']),
     python_requires='>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*',
-    install_requires=install_requires,
+    install_requires=[
+        'pytz',
+        'enum34; python_version<"3.4"',
+        'ipaddress; python_version<"3.4"',
+        'tzlocal'
+    ],
+    ext_modules=extensions,
     extras_require={
-        'lz4': ['lz4', 'clickhouse-cityhash>=1.0.2.1'],
+        'lz4': ['lz4<=3.0.1', 'clickhouse-cityhash>=1.0.2.1'],
         'zstd': ['zstd', 'clickhouse-cityhash>=1.0.2.1'],
         'numpy': ['numpy', 'pandas']
     },
@@ -96,7 +130,8 @@ setup(
         'nose',
         'mock',
         'freezegun',
-        'lz4', 'zstd',
+        'lz4<=3.0.1',
+        'zstd',
         'clickhouse-cityhash>=1.0.2.1'
     ],
 )

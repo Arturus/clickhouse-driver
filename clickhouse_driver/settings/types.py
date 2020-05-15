@@ -1,5 +1,6 @@
 
-from ..writer import write_binary_str, write_varint
+from ..varint import write_varint
+from ..writer import write_binary_str
 
 
 class SettingType(object):
@@ -11,7 +12,7 @@ class SettingType(object):
 class SettingUInt64(SettingType):
     @classmethod
     def write(cls, value, buf):
-        write_varint(value, buf)
+        write_varint(int(value), buf)
 
 
 class SettingBool(SettingType):

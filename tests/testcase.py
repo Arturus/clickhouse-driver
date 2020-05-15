@@ -5,6 +5,7 @@ from unittest import TestCase
 from clickhouse_driver.client import Client
 from clickhouse_driver.util import compat
 from tests import log
+from tests.util import skip_by_server_version
 
 
 if compat.PY3:
@@ -21,6 +22,9 @@ log.configure(file_config.get('log', 'level'))
 
 
 class BaseTestCase(TestCase):
+    required_server_version = None
+    server_version = None
+
     host = file_config.get('db', 'host')
     port = file_config.getint('db', 'port')
     database = file_config.get('db', 'database')
@@ -61,10 +65,14 @@ class BaseTestCase(TestCase):
         return out.decode(encoding)
 
     def _create_client(self, **kwargs):
-        return Client(
-            self.host, self.port, self.database, self.user, self.password,
-            **kwargs
-        )
+        client_kwargs = {
+            'port': self.port,
+            'database': self.database,
+            'user': self.user,
+            'password': self.password
+        }
+        client_kwargs.update(kwargs)
+        return Client(self.host, **client_kwargs)
 
     @contextmanager
     def created_client(self, **kwargs):
@@ -82,14 +90,21 @@ class BaseTestCase(TestCase):
         )
         cls.emit_cli('CREATE DATABASE {}'.format(cls.database), 'default')
 
+        version_str = cls.emit_cli('SELECT version()').strip()
+        cls.server_version = tuple(int(x) for x in version_str.split('.'))
+
         super(BaseTestCase, cls).setUpClass()
 
     def setUp(self):
         super(BaseTestCase, self).setUp()
+
+        required = self.required_server_version
+
+        if required and required > self.server_version:
+            skip_by_server_version(self, self.required_server_version)
+
         if callable(self.client_kwargs):
-            version_str = self.emit_cli('SELECT version()')
-            version = tuple(int(x) for x in version_str.strip().split('.'))
-            client_kwargs = self.client_kwargs(version)
+            client_kwargs = self.client_kwargs(self.server_version)
         else:
             client_kwargs = self.client_kwargs
         client_kwargs = client_kwargs or {}
@@ -106,6 +121,14 @@ class BaseTestCase(TestCase):
 
     @contextmanager
     def create_table(self, columns, **kwargs):
+        if self.cli_client_kwargs:
+            if callable(self.cli_client_kwargs):
+                cli_client_kwargs = self.cli_client_kwargs()
+                if cli_client_kwargs:
+                    kwargs.update(cli_client_kwargs)
+            else:
+                kwargs.update(self.cli_client_kwargs)
+
         self.emit_cli(
             'CREATE TABLE test ({}) ''ENGINE = Memory'.format(columns),
             **kwargs

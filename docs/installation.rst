@@ -8,6 +8,23 @@ Python Version
 
 Clickhouse-driver supports Python 3.4 and newer, Python 2.7, and PyPy.
 
+Build Dependencies
+------------------
+
+Starting from version *0.1.0* for building from source `gcc`, python and linux headers are required.
+
+Example for `python:alpine` docker image:
+
+    .. code-block:: bash
+
+       apk add gcc musl-dev
+
+By default there are wheels for Linux, Mac OS X and Windows.
+
+Packages for Linux and Mac OS X are available for python: 2.7, 3.4, 3.5, 3.6, 3.7, 3.8.
+
+Packages for Windows are available for python: 2.7, 3.5, 3.6, 3.7, 3.8.
+
 Dependencies
 ------------
 

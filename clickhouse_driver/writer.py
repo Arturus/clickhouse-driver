@@ -1,5 +1,6 @@
 import struct
 
+from .varint import write_varint
 from .util import compat
 
 
@@ -11,8 +12,7 @@ if compat.PY3:
     def _byte(b):
         return bytes((b, ))
 else:
-    def _byte(b):
-        return chr(b)
+    _byte = chr
 
 
 def write_binary_str(text, buf):
@@ -23,34 +23,6 @@ def write_binary_str(text, buf):
 def write_binary_bytes(text, buf):
     write_varint(len(text), buf)
     buf.write(text)
-
-
-def write_binary_str_fixed_len(text, buf, length):
-    text = text.encode('utf-8')
-    write_binary_bytes_fixed_len(text, buf, length)
-
-
-def write_binary_bytes_fixed_len(text, buf, length):
-    diff = length - len(text)
-    if diff > 0:
-        text += _byte(0) * diff
-    elif diff < 0:
-        raise ValueError
-    buf.write(text)
-
-
-def write_varint(number, buf):
-    """
-    Writes integer of variable length using LEB128.
-    """
-    while True:
-        towrite = number & 0x7f
-        number >>= 7
-        if number:
-            buf.write(_byte(towrite | 0x80))
-        else:
-            buf.write(_byte(towrite))
-            break
 
 
 def write_binary_int(number, buf, fmt):

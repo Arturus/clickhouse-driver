@@ -31,10 +31,11 @@ INSERT types: :class:`~datetime.date`, :class:`~datetime.datetime`.
 SELECT type: :class:`~datetime.date`.
 
 
-DateTime('timezone')
---------------------
+DateTime('timezone')/DateTime64('timezone')
+-------------------------------------------
 
 *Timezone support is new in version 0.0.11.*
+*DateTime64 support is new in version 0.1.3.*
 
 INSERT types: :class:`~datetime.datetime`, :class:`int`, :class:`long`.
 
@@ -45,17 +46,33 @@ SELECT type: :class:`~datetime.datetime`.
 
 Setting `use_client_time_zone <https://clickhouse.yandex/docs/en/single/#datetime>`_ is taken into consideration.
 
+You can cast DateTime column to integers if you are facing performance issues when selecting large amount of rows.
+
+Due to Python's current limitations minimal DateTime64 resolution is one microsecond.
+
 
 String/FixedString(N)
 ---------------------
 
-INSERT types: :class:`str`/:func:`basestring <basestring>`, :class:`bytearray`, :class:`bytes`. See note below.
+INSERT types: :class:`str`/:func:`basestring <basestring>`, :class:`bytes`. See note below.
 
 SELECT type: :class:`str`/:func:`basestring <basestring>`, :class:`bytes`. See note below.
 
-String column is encoded/decoded using UTF-8 encoding.
+String column is encoded/decoded with encoding specified by ``strings_encoding`` setting. Default encoding is UTF-8.
 
-String column can be returned without decoding. Return values are `bytes`:
+You can specify custom encoding:
+
+    .. code-block:: python
+
+        >>> settings = {'strings_encoding': 'cp1251'}
+        >>> rows = client.execute(
+        ...     'SELECT * FROM table_with_strings',
+        ...     settings=settings
+        ... )
+
+Encoding is applied to all string fields in query.
+
+String columns can be returned without any decoding. In this case return values are `bytes`:
 
     .. code-block:: python
 
@@ -69,9 +86,9 @@ String column can be returned without decoding. Return values are `bytes`:
 If a column has FixedString type, upon returning from SELECT it may contain trailing zeroes
 in accordance with ClickHouse's storage format. Trailing zeroes are stripped by driver for convenience.
 
-During SELECT, if a string cannot be decoded with UTF-8 encoding, it will return as :class:`bytes`.
+During SELECT, if a string cannot be decoded with specified encoding, it will return as :class:`bytes`.
 
-During INSERT, if ``strings_as_bytes`` setting is not specified and string cannot be encoded with ``UTF-8``,
+During INSERT, if ``strings_as_bytes`` setting is not specified and string cannot be encoded with encoding,
 a ``UnicodeEncodeError`` will be raised.
 
 
@@ -103,6 +120,7 @@ SELECT type: :class:`str`/:func:`basestring <basestring>`.
         ...     'INSERT INTO test (x) VALUES',
         ...     [{'x': MyEnum.foo}, {'x': 'bar'}, {'x': 1}]
         ... )
+        3
         >>> client.execute('SELECT * FROM test')
         [('foo',), ('bar',), ('foo',)]
 
@@ -120,7 +138,9 @@ Array(T)
 
 INSERT types: :class:`list`, :class:`tuple`.
 
-SELECT type: :func:`tuple <tuple>`.
+SELECT type: :class:`list`.
+
+*Versions before 0.1.4:* SELECT type: :class:`tuple`.
 
 
     .. code-block:: python
@@ -136,6 +156,7 @@ SELECT type: :func:`tuple <tuple>`.
         ...     'INSERT INTO test (x) VALUES',
         ...     [{'x': [10, 20, 30]}, {'x': [11, 21, 31]}]
         ... )
+        2
         >>> client.execute('SELECT * FROM test')
         [((10, 20, 30),), ((11, 21, 31),)]
 
@@ -192,6 +213,7 @@ SELECT type: :class:`~ipaddress.IPv4Address`/:class:`~ipaddress.IPv6Address`.
         ...     {'x': 167772161},
         ...     {'x': IPv4Address('192.168.253.42')}
         ... ])
+        3
         >>> client.execute('SELECT * FROM test')
         [(IPv4Address('192.168.253.42'),), (IPv4Address('10.0.0.1'),), (IPv4Address('192.168.253.42'),)]
         >>>
@@ -208,6 +230,7 @@ SELECT type: :class:`~ipaddress.IPv4Address`/:class:`~ipaddress.IPv6Address`.
         ...     {'x': IPv6Address('12ff:0000:0000:0000:0000:0000:0000:0001')},
         ...     {'x': b"y\xf4\xe6\x98E\xde\xa5\x9b'e(\xe3\x8d:5\xae"}
         ... ])
+        3
         >>> client.execute('SELECT * FROM test')
         [(IPv6Address('79f4:e698:45de:a59b:2765:28e3:8d3a:35ae'),), (IPv6Address('12ff::1'),), (IPv6Address('79f4:e698:45de:a59b:2765:28e3:8d3a:35ae'),)]
         >>>
@@ -223,3 +246,25 @@ LowCardinality(T)
 INSERT types: ``T``.
 
 SELECT type: ``T``.
+
+
+SimpleAggregateFunction(F, T)
+-----------------------------
+
+*New in version 0.0.21.*
+
+INSERT types: ``T``.
+
+SELECT type: ``T``.
+
+AggregateFunctions for `AggregatingMergeTree` Engine are not supported.
+
+
+Tuple(T1, T2, ...)
+------------------
+
+*New in version 0.1.4.*
+
+INSERT types: :class:`list`, :class:`tuple`.
+
+SELECT type: :class:`tuple`.

@@ -20,18 +20,15 @@ class PacketsTestCase(BaseTestCase):
         self.assertEqual(ClientPacketTypes.to_str(42), 'Unknown packet')
 
         self.assertEqual(ServerPacketTypes.to_str(4), 'Pong')
-        self.assertEqual(ServerPacketTypes.to_str(11), 'Unknown packet')
+        self.assertEqual(ServerPacketTypes.to_str(12), 'Unknown packet')
         self.assertEqual(ServerPacketTypes.to_str(42), 'Unknown packet')
 
 
 class ConnectTestCase(BaseTestCase):
     def test_exception_on_hello_packet(self):
-        client = Client(self.host, self.port, self.database, 'wrong_user')
-
-        with self.assertRaises(errors.ServerException) as e:
-            client.execute('SHOW TABLES')
-
-        client.disconnect()
+        with self.created_client(user='wrong_user') as client:
+            with self.assertRaises(errors.ServerException) as e:
+                client.execute('SHOW TABLES')
 
         # Simple exception formatting checks
         exc = e.exception
@@ -126,6 +123,27 @@ class ConnectTestCase(BaseTestCase):
             rv = self.client.execute('SELECT 1')
             self.assertEqual(rv, [(1, )])
 
+    def test_alt_hosts(self):
+        client = Client(
+            'wrong_host', 1234, self.database, self.user, self.password,
+            alt_hosts='{}:{}'.format(self.host, self.port)
+        )
+
+        getaddrinfo = socket.getaddrinfo
+
+        def side_getaddrinfo(host, *args, **kwargs):
+            if host == 'wrong_host':
+                raise socket.error(-2, 'Name or service not known')
+            return getaddrinfo(host, *args, **kwargs)
+
+        with patch('socket.getaddrinfo') as mocked_getaddrinfo:
+            mocked_getaddrinfo.side_effect = side_getaddrinfo
+
+            rv = client.execute('SELECT 1')
+            self.assertEqual(rv, [(1,)])
+
+        client.disconnect()
+
 
 class FakeBufferedReader(BufferedReader):
     def __init__(self, inputs, bufsize=128):
@@ -162,7 +180,7 @@ class TestBufferedReader(TestCase):
 
         self.assertRaises(EOFError, rdr.read, 10)
 
-    def test_cornder_case_read_to_end_of_buffer(self):
+    def test_corner_case_read_to_end_of_buffer(self):
         rdr = FakeBufferedReader([
             b'\x00' * 10,
             b'\xff' * 10,
@@ -196,7 +214,7 @@ class TestBufferedReader(TestCase):
             write_binary_str(name, buf)
         buf = buf.getvalue()
 
-        ref_values = [x.encode('utf-8') for x in strings]
+        ref_values = tuple(x.encode('utf-8') for x in strings)
 
         for split in range(1, len(buf) - 1):
             for split_2 in range(split + 1, len(buf) - 2):

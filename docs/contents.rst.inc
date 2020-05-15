@@ -26,6 +26,9 @@ There is an asynchronous wrapper for clickhouse-driver: aioch. It's available `h
    quickstart
    features
    types
+   performance
+   misc
+   unsupportedserverversions
 
 API Reference
 -------------
@@ -37,6 +40,7 @@ method, this part of the documentation is for you.
    :maxdepth: 2
 
    api
+   dbapi
 
 Additional Notes
 ----------------

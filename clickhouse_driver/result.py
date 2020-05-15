@@ -1,3 +1,4 @@
+from .blockstreamprofileinfo import BlockStreamProfileInfo
 from .progress import Progress
 import numpy as np
 import pandas as pd
@@ -27,7 +28,7 @@ class QueryResult(object):
             return
 
         # Header block contains no rows. Pick columns from it.
-        if block.rows:
+        if block.num_rows:
             if self.columnar:
                 columns = block.get_columns()
                 self.data.append(columns)
@@ -39,7 +40,7 @@ class QueryResult(object):
 
     def get_result(self):
         """
-        :return: Stored query result.
+        :return: stored query result.
         """
 
         for packet in self.packet_generator:
@@ -81,12 +82,6 @@ class ProgressQueryResult(QueryResult):
             packet_generator, with_column_types, columnar
         )
 
-    def store_progress(self, progress_packet):
-        self.progress_totals.rows += progress_packet.rows
-        self.progress_totals.bytes += progress_packet.bytes
-        self.progress_totals.total_rows += progress_packet.total_rows
-        return self.progress_totals.rows, self.progress_totals.total_rows
-
     def __iter__(self):
         return self
 
@@ -95,7 +90,10 @@ class ProgressQueryResult(QueryResult):
             packet = next(self.packet_generator)
             progress_packet = getattr(packet, 'progress', None)
             if progress_packet:
-                return self.store_progress(progress_packet)
+                self.progress_totals.increment(progress_packet)
+                return (
+                    self.progress_totals.rows, self.progress_totals.total_rows
+                )
             else:
                 self.store(packet)
 
@@ -147,18 +145,18 @@ class IterQueryResult(object):
 
 class QueryInfo(object):
     def __init__(self):
-        self.profile_info = None
-        self.progress = None
-        self.elapsed = None
+        self.profile_info = BlockStreamProfileInfo()
+        self.progress = Progress()
+        self.elapsed = 0
 
-    def store_profile(self, packet):
-        self.profile_info = packet.profile_info
+    def store_profile(self, profile_info):
+        self.profile_info = profile_info
 
-    def store_progress(self, packet):
-        progress = packet.progress
-        if progress.bytes == 0 and self.progress and self.progress.bytes != 0:
-            return
-        self.progress = progress
+    def store_progress(self, progress):
+        if self.progress:
+            self.progress.increment(progress)
+        else:
+            self.progress = progress
 
     def store_elapsed(self, elapsed):
         self.elapsed = elapsed

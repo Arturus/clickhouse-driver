@@ -6,9 +6,10 @@ from time import time
 
 from . import defines
 from . import errors
-from .block import Block
+from .block import RowOrientedBlock
 from .blockstreamprofileinfo import BlockStreamProfileInfo
 from .bufferedreader import BufferedSocketReader
+from .bufferedwriter import BufferedSocketWriter
 from .clientinfo import ClientInfo
 from .compression import get_compressor_cls
 from .context import Context
@@ -16,11 +17,12 @@ from .log import log_block
 from .progress import Progress
 from .protocol import Compression, ClientPacketTypes, ServerPacketTypes
 from .queryprocessingstage import QueryProcessingStage
-from .reader import read_varint, read_binary_str
+from .reader import read_binary_str
 from .readhelpers import read_exception
 from .settings.writer import write_settings
-from .writer import write_varint, write_binary_str
-
+from .util.compat import urlparse
+from .varint import write_varint, read_varint
+from .writer import write_binary_str
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,7 @@ class Packet(object):
         self.exception = None
         self.progress = None
         self.profile_info = None
+        self.multistring_message = None
 
         super(Packet, self).__init__()
 
@@ -58,7 +61,9 @@ class Connection(object):
     Represents connection between client and ClickHouse server.
 
     :param host: host with running ClickHouse server.
-    :param port: port ClickHouse server is bound to. Defaults to ``9000``.
+    :param port: port ClickHouse server is bound to.
+                 Defaults to ``9000`` if connection is not secured and
+                 to ``9440`` if connection is secured.
     :param database: database connect to. Defaults to ``'default'``.
     :param user: database user. Defaults to ``'default'``.
     :param password: user's password. Defaults to ``''`` (no password).
@@ -88,7 +93,8 @@ class Connection(object):
     :param ssl_version: see :func:`ssl.wrap_socket` docs.
     :param ca_certs: see :func:`ssl.wrap_socket` docs.
     :param ciphers: see :func:`ssl.wrap_socket` docs.
-
+    :param alt_hosts: list of alternative hosts for connection.
+                      Example: alt_hosts=host1:port1,host2:port2.
     """
 
     def __init__(
@@ -102,14 +108,20 @@ class Connection(object):
             compression=False,
             secure=False,
             # Secure socket parameters.
-            verify=True, ssl_version=None, ca_certs=None, ciphers=None
+            verify=True, ssl_version=None, ca_certs=None, ciphers=None,
+            alt_hosts=None
     ):
-        self.host = host
-
         if secure:
-            self.port = port or defines.DEFAULT_SECURE_PORT
+            default_port = defines.DEFAULT_SECURE_PORT
         else:
-            self.port = port or defines.DEFAULT_PORT
+            default_port = defines.DEFAULT_PORT
+
+        self.hosts = [(host, port or default_port)]
+
+        if alt_hosts:
+            for host in alt_hosts.split(','):
+                url = urlparse('clickhouse://' + host)
+                self.hosts.append((url.hostname, url.port or default_port))
 
         self.database = database
         self.user = user
@@ -164,7 +176,6 @@ class Connection(object):
         return '{}:{}'.format(self.host, self.port)
 
     def force_connect(self):
-
         if not self.connected:
             self.connect()
 
@@ -172,7 +183,7 @@ class Connection(object):
             logger.warning('Connection was closed, reconnecting.')
             self.connect()
 
-    def _create_socket(self):
+    def _create_socket(self, host, port):
         """
         Acts like socket.create_connection, but wraps socket with SSL
         if connection is secure.
@@ -187,7 +198,6 @@ class Connection(object):
             ssl_options = self.ssl_options.copy()
             ssl_options['cert_reqs'] = cert_reqs
 
-        host, port = self.host, self.port
         err = None
         for res in socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM):
             af, socktype, proto, canonname, sa = res
@@ -212,44 +222,63 @@ class Connection(object):
         else:
             raise socket.error("getaddrinfo returns an empty list")
 
+    def _init_connection(self, host, port):
+        self.socket = self._create_socket(host, port)
+        self.connected = True
+        self.host, self.port = host, port
+        self.socket.settimeout(self.send_receive_timeout)
+
+        # performance tweak
+        self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+        self.fin = BufferedSocketReader(self.socket, defines.BUFFER_SIZE)
+        self.fout = BufferedSocketWriter(self.socket, defines.BUFFER_SIZE)
+
+        self.send_hello()
+        self.receive_hello()
+
+        self.block_in = self.get_block_in_stream()
+        self.block_out = self.get_block_out_stream()
+
     def connect(self):
-        try:
-            if self.connected:
+        if self.connected:
+            self.disconnect()
+
+        logger.debug(
+            'Connecting. Database: %s. User: %s', self.database, self.user
+        )
+
+        err = None
+        for host, port in self.hosts:
+            logger.debug('Connecting to %s:%s', host, port)
+
+            try:
+                return self._init_connection(host, port)
+
+            except socket.timeout as e:
                 self.disconnect()
+                logger.warning(
+                    'Failed to connect to %s:%s', host, port, exc_info=True
+                )
+                err = errors.SocketTimeoutError(
+                    '{} ({})'.format(e.strerror, self.get_description())
+                )
 
-            logger.debug(
-                'Connecting. Database: %s. User: %s', self.database, self.user
-            )
+            except socket.error as e:
+                self.disconnect()
+                logger.warning(
+                    'Failed to connect to %s:%s', host, port, exc_info=True
+                )
+                err = errors.NetworkError(
+                    '{} ({})'.format(e.strerror, self.get_description())
+                )
 
-            self.socket = self._create_socket()
-            self.connected = True
-            self.socket.settimeout(self.send_receive_timeout)
-
-            # performance tweak
-            self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
-            self.fin = BufferedSocketReader(self.socket, defines.BUFFER_SIZE)
-            self.fout = self.socket.makefile('wb')
-
-            self.send_hello()
-            self.receive_hello()
-
-            self.block_in = self.get_block_in_stream()
-            self.block_out = self.get_block_out_stream()
-
-        except socket.timeout as e:
-            self.disconnect()
-            raise errors.SocketTimeoutError(
-                '{} ({})'.format(e.strerror, self.get_description())
-            )
-
-        except socket.error as e:
-            self.disconnect()
-            raise errors.NetworkError(
-                '{} ({})'.format(e.strerror, self.get_description())
-            )
+        if err is not None:
+            raise err
 
     def reset_state(self):
+        self.host = None
+        self.port = None
         self.socket = None
         self.fin = None
         self.fout = None
@@ -268,14 +297,6 @@ class Connection(object):
         """
 
         if self.connected:
-            # Close file descriptors before socket closing.
-            if self.fout:
-                try:
-                    self.fout.close()
-
-                except socket.error as e:
-                    logger.warning('Error on out file close: %s', e)
-
             # There can be errors on shutdown.
             # We need to close socket and reset state even if it happens.
             try:
@@ -412,6 +433,11 @@ class Connection(object):
         elif packet_type == ServerPacketTypes.END_OF_STREAM:
             pass
 
+        elif packet_type == ServerPacketTypes.TABLE_COLUMNS:
+            packet.multistring_message = self.receive_multistring_message(
+                packet_type
+            )
+
         else:
             self.disconnect()
             raise errors.UnknownPacketFromServerError(
@@ -451,9 +477,7 @@ class Connection(object):
         if revision >= defines.DBMS_MIN_REVISION_WITH_TEMPORARY_TABLES:
             read_binary_str(self.fin)
 
-        block = self.block_in.read()
-        self.block_in.reset()
-        return block
+        return self.block_in.read()
 
     def receive_exception(self):
         return read_exception(self.fin)
@@ -468,6 +492,10 @@ class Connection(object):
         profile_info.read(self.fin)
         return profile_info
 
+    def receive_multistring_message(self, packet_type):
+        num = ServerPacketTypes.strings_in_message(packet_type)
+        return [read_binary_str(self.fin) for _i in range(num)]
+
     def send_data(self, block, table_name=''):
         start = time()
         write_varint(ClientPacketTypes.DATA, self.fout)
@@ -477,7 +505,6 @@ class Connection(object):
             write_binary_str(table_name, self.fout)
 
         self.block_out.write(block)
-        self.block_out.reset()
         logger.debug('Block send time: %f', time() - start)
 
     def send_query(self, query, query_id=None):
@@ -513,12 +540,12 @@ class Connection(object):
 
     def send_external_tables(self, tables, types_check=False):
         for table in tables or []:
-            block = Block(table['structure'], table['data'],
-                          types_check=types_check)
+            block = RowOrientedBlock(table['structure'], table['data'],
+                                     types_check=types_check)
             self.send_data(block, table_name=table['name'])
 
         # Empty block, end of data transfer.
-        self.send_data(Block())
+        self.send_data(RowOrientedBlock())
 
     @contextmanager
     def timeout_setter(self, new_timeout):

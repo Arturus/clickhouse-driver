@@ -1,9 +1,67 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.3] - 2020-02-21
 ### Added
-- LowCardinality type.
-- Access for read bytes, read rows and elapsed time of the last executed query.
+- Python DB API 2.0.
+- Multiple hosts support on connection errors.
+- Insert columnar data support. Pull request [#122](https://github.com/mymarilyn/clickhouse-driver/pull/122) by [Anexen](https://github.com/Anexen).
+- Wheels for Python 3.8.
+- DateTime64 type.
+- Settings update to v20.2.1.2201 server version. Pull request [#123](https://github.com/mymarilyn/clickhouse-driver/pull/123) by [azat](https://github.com/azat).
+
+### Fixed
+- `Client.from_url` settings detection.
+- Close socket on `KeyboardInterrupt` while running query.
+- Null handling in LowCardinality columns.
+
+### Changed
+- Protocol version bumped to 54421.
+- Increased speed (up to 20-30% compared to 0.1.2 release) on heavy `SELECT` and `INSERT` queries. Pull request [#122](https://github.com/mymarilyn/clickhouse-driver/pull/122) by [Anexen](https://github.com/Anexen).
+- Memory consumption decreased (up to 20% compared to 0.1.2 release). Pull request [#122](https://github.com/mymarilyn/clickhouse-driver/pull/122) by [Anexen](https://github.com/Anexen).
+
+## [0.1.2] - 2019-10-18
+### Added
+- Settings update to 19.16.1 server version. Pull request [#111](https://github.com/mymarilyn/clickhouse-driver/pull/111) by [azat](https://github.com/azat).
+- Python 3.8 in Travis CI build matrix.
+- Returning inserted rows count on `INSERT` queries with data. Returning rows count from `INSERT FROM SELECT` is not supported.
+
+### Fixed
+- Exposing `columnar` parameter to `execute_with_progress`. Pull request [#108](https://github.com/mymarilyn/clickhouse-driver/pull/108) by [igorbb](https://github.com/igorbb).
+- LowCardinality tests. Pull request [#112](https://github.com/mymarilyn/clickhouse-driver/pull/112) by [azat](https://github.com/azat).
+
+### Changed
+- Increased speed (up to 5 times compared to 0.1.1 release) of `INSERT` queries.
+- Date/DateTime columns selecting and inserting optimizations.
+
+## [0.1.1] - 2019-09-20
+### Added
+- `Client.from_url` method that creates client configured from the given URL.
+
+### Fixed
+- If source column was timezone-aware values from DateTime column are returned with timezone now.
+- Handling zero bytes in the middle of FixedString column. Issue [#104](https://github.com/mymarilyn/clickhouse-driver/issues/104).
+
+## [0.1.0] - 2019-08-07
+### Added
+- SimpleAggregateFunction type. Pull request [#95](https://github.com/mymarilyn/clickhouse-driver/pull/95) by [azat](https://github.com/azat).
+
+### Changed
+- Increased speed (5-6 times compared to 0.0.20 release) of `SELECT` queries with large amount of strings.
+- Package is distributed in source and binary forms now. Compilation from source is required for platforms without wheels.
+
+### Fixed
+- Elapsed time calculation on INSERT.
+- Dependencies environment markers for poetry in `setup.py`. Pull request [#96](https://github.com/mymarilyn/clickhouse-driver/pull/96) by [nitoqq](https://github.com/nitoqq).
+
+## [0.0.20] - 2019-06-02
+### Added
+- LowCardinality(T) type.
+- Access for processed rows, bytes and elapsed time of the last executed query.
+- Allow to insert `datetime` into Date column. Pull request [#75](https://github.com/mymarilyn/clickhouse-driver/pull/75) by [gle4er](https://github.com/gle4er).
+- 'max_partitions_per_insert_block' setting. Pull request [#85](https://github.com/mymarilyn/clickhouse-driver/pull/85) by [mhsekhavat](https://github.com/mhsekhavat).
+
+### Fixed
+- Fallback for user name if it's not defined. Pull request [#87](https://github.com/mymarilyn/clickhouse-driver/pull/87) by [wawaka](https://github.com/wawaka).
 
 ## [0.0.19] - 2019-03-31
 ### Added
@@ -190,7 +248,12 @@
 - Date/DateTime types.
 - String types.
 
-[Unreleased]: https://github.com/mymarilyn/clickhouse-driver/compare/0.0.19...HEAD
+[Unreleased]: https://github.com/mymarilyn/clickhouse-driver/compare/0.1.3...HEAD
+[0.1.3]: https://github.com/mymarilyn/clickhouse-driver/compare/0.1.2...0.1.3
+[0.1.2]: https://github.com/mymarilyn/clickhouse-driver/compare/0.1.1...0.1.2
+[0.1.1]: https://github.com/mymarilyn/clickhouse-driver/compare/0.1.0...0.1.1
+[0.1.0]: https://github.com/mymarilyn/clickhouse-driver/compare/0.0.20...0.1.0
+[0.0.20]: https://github.com/mymarilyn/clickhouse-driver/compare/0.0.19...0.0.20
 [0.0.19]: https://github.com/mymarilyn/clickhouse-driver/compare/0.0.18...0.0.19
 [0.0.18]: https://github.com/mymarilyn/clickhouse-driver/compare/0.0.17...0.0.18
 [0.0.17]: https://github.com/mymarilyn/clickhouse-driver/compare/0.0.16...0.0.17

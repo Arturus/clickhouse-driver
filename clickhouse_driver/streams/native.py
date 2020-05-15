@@ -1,7 +1,8 @@
-from ..block import Block, BlockInfo
+from ..block import ColumnOrientedBlock, BlockInfo
 from ..columns.service import read_column, write_column
-from ..reader import read_varint, read_binary_str
-from ..writer import write_varint, write_binary_str
+from ..reader import read_binary_str
+from ..varint import write_varint, read_varint
+from ..writer import write_binary_str
 from .. import defines
 
 
@@ -12,17 +13,14 @@ class BlockOutputStream(object):
 
         super(BlockOutputStream, self).__init__()
 
-    def reset(self):
-        pass
-
     def write(self, block):
         revision = self.context.server_info.revision
         if revision >= defines.DBMS_MIN_REVISION_WITH_BLOCK_INFO:
             block.info.write(self.fout)
 
         # We write transposed data.
-        n_columns = block.rows
-        n_rows = block.columns
+        n_columns = block.num_columns
+        n_rows = block.num_rows
 
         write_varint(n_columns, self.fout)
         write_varint(n_rows, self.fout)
@@ -33,7 +31,7 @@ class BlockOutputStream(object):
 
             if n_columns:
                 try:
-                    items = [row[i] for row in block.data]
+                    items = block.get_column_by_index(i)
                 except IndexError:
                     raise ValueError('Different rows length')
 
@@ -52,9 +50,6 @@ class BlockInputStream(object):
         self.context = context
 
         super(BlockInputStream, self).__init__()
-
-    def reset(self):
-        pass
 
     def read(self):
         info = BlockInfo()
@@ -80,11 +75,10 @@ class BlockInputStream(object):
                                      self.fin)
                 data.append(column)
 
-        block = Block(
+        block = ColumnOrientedBlock(
             columns_with_types=list(zip(names, types)),
             data=data,
             info=info,
-            received_from_server=True
         )
 
         return block

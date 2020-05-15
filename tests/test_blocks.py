@@ -1,8 +1,10 @@
 import types
 
+from mock import patch
+
 from clickhouse_driver.errors import ServerException
 from tests.testcase import BaseTestCase
-from tests.util import capture_logging, require_server_version
+from tests.util import capture_logging
 
 
 class BlocksTestCase(BaseTestCase):
@@ -61,11 +63,32 @@ class BlocksTestCase(BaseTestCase):
         )
         self.assertEqual(rv, ([(1,)], [('x', 'Int32')]))
 
+    def test_select_with_columnar_with_column_types(self):
+        progress = self.client.execute_with_progress(
+            'SELECT arrayJoin(A) -1 as j,'
+            'arrayJoin(A)+1 as k FROM('
+            'SELECT range(3) as A)',
+            columnar=True, with_column_types=True)
+        rv = ([(-1, 0, 1), (1, 2, 3)], [('j', 'Int16'), ('k', 'UInt16')])
+        self.assertEqual(progress.get_result(), rv)
+
+    def test_close_connection_on_keyboard_interrupt(self):
+        connection = self.client.connection
+        with self.assertRaises(KeyboardInterrupt):
+            with patch.object(connection, 'send_query') as mocked_send_query:
+                mocked_send_query.side_effect = KeyboardInterrupt
+                self.client.execute('SELECT 1')
+
+        self.assertFalse(self.client.connection.connected)
+
 
 class ProgressTestCase(BaseTestCase):
     def test_select_with_progress(self):
         progress = self.client.execute_with_progress('SELECT 2')
-        self.assertEqual(list(progress), [(1, 0)])
+        self.assertEqual(
+            list(progress),
+            [(1, 0), (1, 0)] if self.server_version > (20,) else [(1, 0)]
+        )
         self.assertEqual(progress.get_result(), [(2,)])
         self.assertTrue(self.client.connection.connected)
 
@@ -111,6 +134,15 @@ class ProgressTestCase(BaseTestCase):
         self.assertEqual(progress.get_result(), [(2,)])
         self.assertTrue(self.client.connection.connected)
 
+    def test_close_connection_on_keyboard_interrupt(self):
+        connection = self.client.connection
+        with self.assertRaises(KeyboardInterrupt):
+            with patch.object(connection, 'send_query') as mocked_send_query:
+                mocked_send_query.side_effect = KeyboardInterrupt
+                self.client.execute_with_progress('SELECT 1')
+
+        self.assertFalse(self.client.connection.connected)
+
 
 class IteratorTestCase(BaseTestCase):
     def test_select_with_iter(self):
@@ -145,9 +177,19 @@ class IteratorTestCase(BaseTestCase):
 
         self.assertFalse(self.client.connection.connected)
 
+    def test_close_connection_on_keyboard_interrupt(self):
+        connection = self.client.connection
+        with self.assertRaises(KeyboardInterrupt):
+            with patch.object(connection, 'send_query') as mocked_send_query:
+                mocked_send_query.side_effect = KeyboardInterrupt
+                self.client.execute_iter('SELECT 1')
+
+        self.assertFalse(self.client.connection.connected)
+
 
 class LogTestCase(BaseTestCase):
-    @require_server_version(18, 12, 13)
+    required_server_version = (18, 12, 13)
+
     def test_logs(self):
         with capture_logging('clickhouse_driver.log', 'INFO') as buffer:
             settings = {'send_logs_level': 'debug'}
